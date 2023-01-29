@@ -1,0 +1,58 @@
+//Echo por Fabrisio Ulloa y Cesar Crespo
+#include <stdlib.h>
+#include <stdio.h>
+#include <signal.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
+
+int main(int argc, char *argv[]) {  
+int pipe_desc[2];
+char *grep_args[] = {"grep", "root", NULL};
+char *whoami_args[] = {"$(whoami)", NULL};
+if (pipe(pipe_desc) < 0) {
+    perror("Error al crear el pipe");
+    return EXIT_FAILURE;
+}
+
+pid_t pid1, pid2;
+
+switch (pid1 = fork()) {
+    case -1:
+        perror("Error en fork()");
+        return EXIT_FAILURE;
+    case 0:
+        close(pipe_desc[1]);
+        dup2(pipe_desc[0], STDIN_FILENO);
+        close(pipe_desc[0]);
+
+        FILE *output_file = fopen("usuarios.txt", "a");
+        dup2(fileno(output_file), STDOUT_FILENO);
+        fclose(output_file);
+
+        execvp(grep_args[0], grep_args);
+        perror("Error en execvp()");
+        return EXIT_FAILURE;
+}
+
+switch (pid2 = fork()) {
+    case -1:
+        perror("Error en fork()");
+        return EXIT_FAILURE;
+    case 0:
+        close(pipe_desc[0]);
+        dup2(pipe_desc[1], STDOUT_FILENO);
+        close(pipe_desc[1]);
+        execvp(whoami_args[0], whoami_args);
+        perror("Error en execvp()");
+        return EXIT_FAILURE;
+}
+
+close(pipe_desc[0]);
+close(pipe_desc[1]);
+waitpid(pid1, 0, 0);
+waitpid(pid2, 0, 0);
+return EXIT_SUCCESS;
+}
